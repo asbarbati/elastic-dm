@@ -25,5 +25,6 @@ go.work
 *.log
 config.json
 elastic-dm
-
+benchmark.txt
 __debug_bin_**
+.vscode/**
