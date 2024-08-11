@@ -1,0 +1,2 @@
+# ElasticSearch Data Migration
+The primary objective of this project is to develop a Golang-based tool as an alternative to ElasticDump, aiming to achieve superior performance and incorporate some useful functionalities.
