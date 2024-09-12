@@ -1,5 +1,14 @@
 package main
 
+import "time"
+
+type defaultValueStruct struct {
+	ESSharedTimeout  time.Duration
+	Workers          int
+	ScrollMultiplier int
+	Mode             string
+}
+
 type esConfigStruct struct {
 	Host             string   `json:"host"`
 	Tls              bool     `json:"tls"`

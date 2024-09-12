@@ -10,7 +10,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/esutil"
 )
 
-func doSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainconfig mainConfigStruct) error {
+func DoSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainconfig mainConfigStruct) error {
 	for iter := 0; iter < len(mainconfig.EsSrc.Indices); iter++ {
 		var dstIndex string
 		var dstIndexExist bool
@@ -25,7 +25,7 @@ func doSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainco
 		}
 
 		// Verify if the SrcIndex Exists. Else skip.
-		srcExist, err := verifyIndex(srccfg, mainconfig.EsSrc.Indices[iter])
+		srcExist, err := VerifyIndex(srccfg, mainconfig.EsSrc.Indices[iter])
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func doSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainco
 		}
 
 		// Verify if dest index exist
-		dstIndexExist, err = verifyIndex(dstcfg, dstIndex)
+		dstIndexExist, err = VerifyIndex(dstcfg, dstIndex)
 		if err != nil {
 			return err
 		}
@@ -50,10 +50,10 @@ func doSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainco
 		logger.Debug("The dest indices '" + dstIndex + "' returns: " + strconv.FormatBool(dstIndexExist))
 
 		logger.Info("Getting IDs from the source index '" + mainconfig.EsSrc.Indices[iter])
-		srcDocIDs, _ = getDocIds(srccfg, mainconfig, mainconfig.EsSrc.Indices[iter])
+		srcDocIDs, _ = GetDocIds(srccfg, mainconfig, mainconfig.EsSrc.Indices[iter])
 
 		if dstIndexExist {
-			dstDocIDs, _ = getDocIds(dstcfg, mainconfig, dstIndex)
+			dstDocIDs, _ = GetDocIds(dstcfg, mainconfig, dstIndex)
 			if len(dstDocIDs) != 0 {
 				for srcdociter := 0; srcdociter < len(srcDocIDs); srcdociter++ {
 					docExist := false
@@ -78,8 +78,9 @@ func doSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainco
 		esIndexer, err := esutil.NewBulkIndexer(esutil.BulkIndexerConfig{
 			Client:     es,
 			Index:      dstIndex,
-			NumWorkers: 40,
-			FlushBytes: 1e+6,
+			NumWorkers: 10,
+			FlushBytes: 5e+6,
+			Refresh:    "false",
 		})
 
 		if err != nil {
@@ -88,7 +89,7 @@ func doSyncMode(srccfg elasticsearch.Config, dstcfg elasticsearch.Config, mainco
 		}
 
 		for diffDocIDIter := 0; diffDocIDIter < len(diffDocIDs); diffDocIDIter++ {
-			docdata, err := getDocData(srccfg, mainconfig.EsSrc.Indices[iter], diffDocIDs[diffDocIDIter])
+			docdata, err := GetDocData(srccfg, mainconfig.EsSrc.Indices[iter], diffDocIDs[diffDocIDIter])
 			if err != nil {
 				return err
 			}

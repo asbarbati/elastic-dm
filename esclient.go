@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -12,75 +11,76 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func verifyConnection(escfg elasticsearch.Config) error {
+func VerifyConnection(escfg elasticsearch.Config) error {
 	logger.Debug("Testing elasticsearch connectivity. Target: " + escfg.Addresses[0])
 	var err error
+
+	// Trying to get the ping page
 	es, _ := elasticsearch.NewClient(escfg)
-	res, err := es.Info()
+	_, err = es.Info()
 	if err != nil {
 		logger.Error("Error during getting the general info, full error: " + err.Error())
 		return err
 	}
-	if res.StatusCode != 200 {
-		logger.Error("Error during getting the general info, full error: " + res.String())
-		err = errors.New("returned not 200")
-	}
-	logger.Debug("Results: " + res.String())
 
 	return err
 }
 
-func verifyIndex(config elasticsearch.Config, index string) (bool, error) {
+func VerifyIndex(config elasticsearch.Config, index string) (bool, error) {
 	logger.Debug("Verifing the indices '" + index + "' on " + config.Addresses[0])
-	es, err := elasticsearch.NewClient(config)
+	// Testing connection
+	es, _ := elasticsearch.NewClient(config)
+	_, err := es.Info()
 	if err != nil {
 		logger.Error("Error during connecting.")
 		return false, err
 	}
+
+	// Trying to getting the document
 	res, _ := esapi.IndicesExistsRequest{Index: []string{index}}.Do(context.Background(), es)
 	if res.StatusCode == 200 {
 		logger.Debug("Indices exists.")
 		return true, nil
 	}
-	logger.Debug("Not exists, return: " + strconv.Itoa(res.StatusCode))
+	logger.Info("Not exists, return: " + strconv.Itoa(res.StatusCode))
 	return false, nil
 }
 
-func getDocData(config elasticsearch.Config, index string, docID string) (*strings.Reader, error) {
+func GetDocData(config elasticsearch.Config, index string, docID string) (*strings.Reader, error) {
 	logger.Debug("Getting data for" + docID)
-	client, err := elasticsearch.NewClient(config)
+	// Testing connection
+	es, _ := elasticsearch.NewClient(config)
+	_, err := es.Info()
 	if err != nil {
 		logger.Error("Error during connecting.")
 		return nil, err
 	}
-	doctmp, err := client.Get(index, docID)
+	doctmp, err := es.Get(index, docID)
 	if err != nil {
 		return nil, err
 	}
 
+	// Clean up data from invalid json
 	doc := strings.Split(doctmp.String(), "] ")
-
-	jsondata := cleanupData(doc[1])
-	return strings.NewReader(jsondata), nil
+	jsoncontent := gjson.Parse(string(doc[1]))
+	return strings.NewReader(jsoncontent.Get("_source").String()), nil
 }
 
-func cleanupData(jsonin string) string {
-	jsoncontent := gjson.Parse(string(jsonin))
-	return jsoncontent.Get("_source").String()
-}
-
-func getDocIds(config elasticsearch.Config, mainConfig mainConfigStruct, index string) ([]string, error) {
+func GetDocIds(config elasticsearch.Config, mainConfig mainConfigStruct, index string) ([]string, error) {
 	logger.Info("Getting Docs IDs from '" + index + "' on " + config.Addresses[0])
 	outids := []string{}
 	bulkSize := int64(1)
-	client, err := elasticsearch.NewClient(config)
+
+	// Testing connection
+	es, _ := elasticsearch.NewClient(config)
+	_, err := es.Info()
 	if err != nil {
 		logger.Error("Error during connecting.")
 		return outids, err
 	}
 
 	// Get Document number
-	stats, err := esapi.IndicesStatsRequest{Index: []string{index}}.Do(context.Background(), client)
+	stats, err := esapi.IndicesStatsRequest{Index: []string{index}}.Do(context.Background(), es)
 	if err != nil {
 		return outids, err
 	}
@@ -88,20 +88,25 @@ func getDocIds(config elasticsearch.Config, mainConfig mainConfigStruct, index s
 	jsoncontent := gjson.Parse(statsjson[1])
 	totalDocs := jsoncontent.Get("_all.primaries.docs.count").Int()
 
+	// Calculate the bulksize based by the ScrollMultiplier
 	if totalDocs >= int64(mainConfig.ScrollMultiplier)*2 {
 		bulkSize = totalDocs / int64(mainConfig.ScrollMultiplier)
 	}
+	logger.Debug("BulkSize: " + strconv.Itoa(int(bulkSize)))
 
+	// Get all the document IDs
+	logger.Debug("Getting all the document IDs")
 	query := `{ "query": { "match_all": {} }, "_source": false }`
-	res, err := client.Search(
-		client.Search.WithIndex(index),
-		client.Search.WithBody(strings.NewReader(query)),
-		client.Search.WithScroll(time.Minute),
-		client.Search.WithSize(int(bulkSize)),
+	res, err := es.Search(
+		es.Search.WithIndex(index),
+		es.Search.WithBody(strings.NewReader(query)),
+		es.Search.WithScroll(time.Minute),
+		es.Search.WithSize(int(bulkSize)),
 	)
-
 	resjson := strings.Split(res.String(), "] ")
 
+	// Parsing the results from the querysearch
+	logger.Debug("Parsing the results")
 	jsoncontent = gjson.Parse(resjson[1])
 	hits := jsoncontent.Get("hits.hits").Array()
 	for iter := 0; iter < len(hits); iter++ {
@@ -109,9 +114,9 @@ func getDocIds(config elasticsearch.Config, mainConfig mainConfigStruct, index s
 	}
 	scrollId := jsoncontent.Get("_scroll_id").String()
 	for {
-		res, _ := client.Scroll(
-			client.Scroll.WithScrollID(scrollId),
-			client.Scroll.WithScroll(time.Minute),
+		res, _ := es.Scroll(
+			es.Scroll.WithScrollID(scrollId),
+			es.Scroll.WithScroll(time.Minute),
 		)
 		resjson := strings.Split(res.String(), "] ")
 		jsoncontent = gjson.Parse(resjson[1])
@@ -125,5 +130,6 @@ func getDocIds(config elasticsearch.Config, mainConfig mainConfigStruct, index s
 			outids = append(outids, hits[iter].Get("_id").String())
 		}
 	}
+	logger.Debug("Returning the IDs: " + strings.Join(outids, ","))
 	return outids, err
 }

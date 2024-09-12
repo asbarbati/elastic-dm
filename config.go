@@ -8,24 +8,26 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func readConfig(jsondata gjson.Result, mainConfig mainConfigStruct) (mainConfigStruct, error) {
+func ReadConfig(jsondata gjson.Result, mainConfig mainConfigStruct, defaultvalue defaultValueStruct) (mainConfigStruct, error) {
 	var err error
 	mandatoryFields := []string{
 		"es_src", "es_src.host", "es_src.passwd", "es_src.user", "es_src.indices",
 		"es_dst", "es_dst.host", "es_dst.passwd", "es_dst.user", "es_dst.indices",
+		"mode",
 	}
 
-	logger.Debug("Verify the mandatory data...")
-
+	// Check mandatory elements
+	logger.Info("Verify the mandatory fields...")
 	for iter := 0; iter < len(mandatoryFields); iter++ {
 		logger.Debug("Verifing field '" + mandatoryFields[iter] + "' exists...")
 		if !jsondata.Get(mandatoryFields[iter]).Exists() {
 			logger.Error("The field '" + mandatoryFields[iter] + "' its mandatory. Exiting")
-			err = errors.New("file missing")
+			err = errors.New("field_missing")
 			break
 		}
 	}
 
+	// Catch if some field missing
 	if err != nil {
 		return mainConfig, err
 	}
@@ -33,15 +35,27 @@ func readConfig(jsondata gjson.Result, mainConfig mainConfigStruct) (mainConfigS
 	logger.Info("Loading Config and defaults...")
 
 	// ScrollMultiplier
-	mainConfig.ScrollMultiplier = 10
+	if jsondata.Get("scrollmultiplier").Exists() {
+		mainConfig.ScrollMultiplier = int(jsondata.Get("scrollmultiplier").Int())
+	} else {
+		mainConfig.ScrollMultiplier = defaultvalue.ScrollMultiplier
+	}
 
+	// Worker details
 	if jsondata.Get("workers").Exists() {
 		mainConfig.Workers = int(jsondata.Get("workers").Int())
 	} else {
-		mainConfig.Workers = 10
+		mainConfig.Workers = defaultvalue.Workers
 	}
 
-	// Apply config
+	// Daemon mode
+	if jsondata.Get("mode").Exists() {
+		mainConfig.Mode = jsondata.Get("mode").String()
+	} else {
+		mainConfig.Mode = defaultvalue.Mode
+	}
+
+	// Source Elasticsearch Config
 	mainConfig.EsSrc.Host = jsondata.Get("es_src.host").String()
 	mainConfig.EsSrc.User = jsondata.Get("es_src.user").String()
 	mainConfig.EsSrc.Passwd = jsondata.Get("es_src.passwd").String()
@@ -51,6 +65,8 @@ func readConfig(jsondata gjson.Result, mainConfig mainConfigStruct) (mainConfigS
 	} else {
 		mainConfig.EsSrc.DisableTlsVerify = false
 	}
+
+	// Destination Elasticsearch Config
 	mainConfig.EsDst.Host = jsondata.Get("es_dst.host").String()
 	mainConfig.EsDst.User = jsondata.Get("es_dst.user").String()
 	mainConfig.EsDst.Passwd = jsondata.Get("es_dst.passwd").String()
@@ -64,7 +80,9 @@ func readConfig(jsondata gjson.Result, mainConfig mainConfigStruct) (mainConfigS
 	return mainConfig, err
 }
 
-func loadConfig(fpath string, mainConfig mainConfigStruct) (mainConfigStruct, error) {
+func LoadConfig(fpath string, defaultvalues defaultValueStruct) (mainConfigStruct, error) {
+	var mainConfig mainConfigStruct
+	// Check if file exists
 	logger.Debug("Checking config file...")
 	_, err := os.Stat(fpath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -72,6 +90,7 @@ func loadConfig(fpath string, mainConfig mainConfigStruct) (mainConfigStruct, er
 		return mainConfig, err
 	}
 
+	// Try to open it
 	logger.Debug("Opening config file...")
 	configFile, err := os.ReadFile(fpath)
 	if err != nil {
@@ -79,6 +98,7 @@ func loadConfig(fpath string, mainConfig mainConfigStruct) (mainConfigStruct, er
 		return mainConfig, err
 	}
 
+	// Load the content
 	configcontent := string(configFile)
 	logger.Debug("Decoding the config file as json...")
 	if !gjson.Valid(configcontent) {
@@ -87,7 +107,6 @@ func loadConfig(fpath string, mainConfig mainConfigStruct) (mainConfigStruct, er
 	}
 
 	jsoncontent := gjson.Parse(configcontent)
-
-	mainConfig, err = readConfig(jsoncontent, mainConfig)
+	mainConfig, err = ReadConfig(jsoncontent, mainConfig, defaultvalues)
 	return mainConfig, err
 }
