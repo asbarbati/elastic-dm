@@ -8,6 +8,8 @@ jobs:
     services:
       elastic:
         image: elasticsearch:8.15.2
+        ports:
+          - 9200:9200
         env:
           ELASTIC_PASSWORD: "elastic"
           CLUSTER_NAME: "ghtest"
