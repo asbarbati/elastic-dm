@@ -1,0 +1,38 @@
+name: Upload Go test results
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      elastic:
+        image: elasticsearch:8.15
+        env:
+          ELASTIC_PASSWORD: "elastic"
+          CLUSTER_NAME: "ghtest"
+          LICENSE: "basic"
+    strategy:
+      matrix:
+        go-version: ['1.22']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Install os packages
+        run: |
+          sudo apt update
+          sudo apt install -y bash curl
+      - name: Install dependencies
+        run: go get .
+      - name: Load fixtures
+        run: bash tests/assets/load_fixtures.bash
+      - name: Test with Go
+        run: go test -json > TestResults-${{ matrix.go-version }}.json
+      - name: Upload Go test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: Go-results-${{ matrix.go-version }}
+          path: TestResults-${{ matrix.go-version }}.json
