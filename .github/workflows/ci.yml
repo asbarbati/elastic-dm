@@ -14,6 +14,8 @@ jobs:
           ELASTIC_PASSWORD: "elastic"
           CLUSTER_NAME: "ghtest"
           LICENSE: "basic"
+          ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+          discovery.type: "single-node"
     strategy:
       matrix:
         go-version: ['1.22']
