@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       elastic:
-        image: elasticsearch:8.15
+        image: elasticsearch:8.15.2
         env:
           ELASTIC_PASSWORD: "elastic"
           CLUSTER_NAME: "ghtest"
