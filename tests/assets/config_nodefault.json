@@ -1,0 +1,16 @@
+{
+    "es_src": {
+        "host": "https://127.0.0.1:9200",
+        "user": "elastic",
+        "passwd": "elastic",
+        "indices": "1m"
+    },
+    "es_dst": {
+        "host": "https://127.0.0.1:9200",
+        "user": "elastic",
+        "passwd": "elastic",
+        "indices": "a"
+    },
+    "mode": "sync",
+    "scrollmultiplier": 10
+}

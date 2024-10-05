@@ -1,0 +1,18 @@
+{
+    "es_src": {
+        "host": "https://127.0.0.1:9200",
+        "disabletlsverify": true,
+        "user": "elastic",
+        "passwd": "elastic",
+        "indices": "abc"
+    },
+    "es_dst": {
+        "host": "https://127.0.0.1:9200",
+        "disabletlsverify": true,
+        "user": "elastic",
+        "passwd": "elastic",
+        "indices": "cde"
+    },
+    "workers": 100,
+    "mode": "sync"
+}
